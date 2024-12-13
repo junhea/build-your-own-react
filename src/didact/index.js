@@ -45,3 +45,20 @@ export function render(element, container) {
   // container is dom object
   container.append(dom);
 }
+
+// prevent render job from hogging main thread for too long
+let nextUnitOfWork = null;
+function workloop(deadline) {
+  let shouldYield = false;
+  while (nextUnitOfWork && !shouldYield) {
+    nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
+    shouldYield = deadline.timeRemaining() < 1;
+  }
+  // runs callback when main thread is idle: yield
+  // react uses scheduler package instead, which is conceptually the same
+  requestIdleCallback(workloop);
+}
+
+function performUnitOfWork() {
+  //TODO
+}
