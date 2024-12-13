@@ -19,8 +19,29 @@ function createTextElement(text) {
   return {
     type: "TEXT_ELEMENT",
     props: {
-      nodeVale: text,
+      nodeValue: text,
       children: [],
     },
   };
+}
+
+// render function
+export function render(element, container) {
+  const dom =
+    element.type === "TEXT_ELEMENT"
+      ? document.createTextNode("")
+      : document.createElement(element.type);
+
+  const isProperty = ([name]) => name !== "children";
+
+  // copy element props to dom node
+  Object.entries(element.props)
+    .filter(isProperty)
+    .forEach(([name, value]) => (dom[name] = value));
+
+  // render recursively
+  element.props.children.forEach((child) => render(child, dom));
+
+  // container is dom object
+  container.append(dom);
 }
