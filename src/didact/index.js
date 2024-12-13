@@ -27,23 +27,28 @@ function createTextElement(text) {
 
 // render function
 export function render(element, container) {
+  nextUnitOfWork = {
+    dom: container,
+    props: {
+      children: [element],
+    },
+  };
+}
+
+function createDom(fiber) {
   const dom =
-    element.type === "TEXT_ELEMENT"
+    fiber.type === "TEXT_ELEMENT"
       ? document.createTextNode("")
-      : document.createElement(element.type);
+      : document.createElement(fiber.type);
 
   const isProperty = ([name]) => name !== "children";
 
   // copy element props to dom node
-  Object.entries(element.props)
+  Object.entries(fiber.props)
     .filter(isProperty)
     .forEach(([name, value]) => (dom[name] = value));
 
-  // render recursively
-  element.props.children.forEach((child) => render(child, dom));
-
-  // container is dom object
-  container.append(dom);
+  return dom;
 }
 
 // prevent render job from hogging main thread for too long
@@ -58,7 +63,47 @@ function workloop(deadline) {
   // react uses scheduler package instead, which is conceptually the same
   requestIdleCallback(workloop);
 }
+// start workloop
+requestIdleCallback(workloop);
 
-function performUnitOfWork() {
-  //TODO
+// 작업들은 fiber tree 형태로 관리 -> 다음 작업을 쉽게 찾기 위함
+// unitOfWork는 각 element 당 하나씩 생성
+function performUnitOfWork(fiber) {
+  // add element to dom
+  if (!fiber.dom) fiber.dom = createDom(fiber);
+  if (fiber.parent) fiber.parent.dom.append(fiber.dom);
+
+  // create fibers for children
+  const elements = fiber.props.children;
+  let index = 0;
+  let prevSibling = null;
+
+  // 굳이 forEach 말고 while 사용하는 이유?
+  // 동기적으로 실행하기 위함?
+  while (index < element.length) {
+    const element = elements[index];
+
+    const newFiber = {
+      type: element.type,
+      props: element.props,
+      parent: fiber,
+      dom: null,
+    };
+
+    // children은 링크드 리스트 형태
+    if (index === 0) fiber.child = newFiber;
+    else prevSibling.sibling = newFiber;
+
+    prevSibling = newFiber;
+    index++;
+  }
+
+  // select next unit of work
+  // child -> sibling -> uncle 순
+  if (fiber.child) return fiber.child;
+  let nextFiber = fiber;
+  while (nextFiber) {
+    if (nextFiber.sibling) return nextFiber.sibling;
+    nextFiber = nextFiber.parent;
+  }
 }
