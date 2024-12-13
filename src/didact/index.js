@@ -27,12 +27,28 @@ function createTextElement(text) {
 
 // render function
 export function render(element, container) {
-  nextUnitOfWork = {
+  wipRoot = {
     dom: container,
     props: {
       children: [element],
     },
   };
+  nextUnitOfWork = wipRoot;
+}
+
+function commitRoot() {
+  // mount completed dom nodes
+  commitWork(wipRoot.child);
+  wipRoot = null;
+}
+
+function commitWork(fiber) {
+  // recursively commit work(mount dom nodes)
+  if (!fiber) return;
+  const domParent = fiber.parent.dom;
+  domParent.appendChild(fiber.dom);
+  commitWork(fiber.child);
+  commitWork(fiber.sibling);
 }
 
 function createDom(fiber) {
@@ -53,12 +69,19 @@ function createDom(fiber) {
 
 // prevent render job from hogging main thread for too long
 let nextUnitOfWork = null;
+let wipRoot = null;
 function workloop(deadline) {
   let shouldYield = false;
   while (nextUnitOfWork && !shouldYield) {
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
     shouldYield = deadline.timeRemaining() < 1;
   }
+
+  // 모든 작업 완료
+  if (!nextUnitOfWork && wipRoot) {
+    commitRoot();
+  }
+
   // runs callback when main thread is idle: yield
   // react uses scheduler package instead, which is conceptually the same
   requestIdleCallback(workloop);
@@ -71,7 +94,8 @@ requestIdleCallback(workloop);
 function performUnitOfWork(fiber) {
   // add element to dom
   if (!fiber.dom) fiber.dom = createDom(fiber);
-  if (fiber.parent) fiber.parent.dom.append(fiber.dom);
+
+  // if (fiber.parent) fiber.parent.dom.append(fiber.dom); // 완료되기 전까지 마운트 방지
 
   // create fibers for children
   const elements = fiber.props.children;
