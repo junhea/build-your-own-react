@@ -32,13 +32,17 @@ export function render(element, container) {
     props: {
       children: [element],
     },
+    alternate: currentRoot,
   };
+  deletions = [];
   nextUnitOfWork = wipRoot;
 }
 
 function commitRoot() {
+  deletions.forEach(commitWork);
   // mount completed dom nodes
   commitWork(wipRoot.child);
+  currentRoot = wipRoot;
   wipRoot = null;
 }
 
@@ -46,7 +50,15 @@ function commitWork(fiber) {
   // recursively commit work(mount dom nodes)
   if (!fiber) return;
   const domParent = fiber.parent.dom;
-  domParent.appendChild(fiber.dom);
+
+  if (fiber.effectTag === "PLACEMENT" && fiber.dom !== null) {
+    domParent.appendChild(fiber.dom);
+  } else if (fiber.effectTag === "UPDATE" && fiber.dom !== null) {
+    updateDom(fiber.dom, fiber.alternate.props, fiber.props);
+  } else if (fiber.effectTag === "DELETION") {
+    domParent.removeChild(fiber.dom);
+  }
+
   commitWork(fiber.child);
   commitWork(fiber.sibling);
 }
@@ -67,9 +79,105 @@ function createDom(fiber) {
   return dom;
 }
 
+const isEvent = (key) => key.startsWith("on");
+const isProperty = (key) => key != children && !isEvent(key);
+const isNew = (prev, next) => (key) => prev[key] !== next[key];
+const isGone = (prev, next) => (key) => !(key in next);
+function updateDom(dom, prevProps, nextProps) {
+  // remove old or changed event handlers
+  Object.keys(prevProps)
+    .filter(isEvent)
+    .filter((key) => isGone(prevProps, nextProps)(key) || !(key in nextProps))
+    .forEach((key) => {
+      const eventType = key.toLowerCase().substring(2);
+      dom.removeEventListener(eventType, prevProps[key]);
+    });
+
+  // remove old props
+  Object.keys(prevProps)
+    .filter(isProperty)
+    .filter(isGone(prevProps, nextProps))
+    .forEach((key) => (dom[key] = ""));
+
+  // set new/changed props
+  Object.keys(nextProps)
+    .filter(isProperty)
+    .filter(isNew(prevProps, nextProps))
+    .forEach((key) => (dom[key] = nextProps[key]));
+
+  // attach new event handlers
+  Object.keys(nextProps)
+    .filter(isEvent)
+    .filter(isNew(prevProps, nextProps))
+    .forEach((key) => {
+      const eventType = key.toLowerCase().substring(2);
+      dom.addEventListener(eventType, prevProps[key]);
+    });
+}
+
+function reconcileChildren(wipFiber, elements) {
+  let index = 0;
+  let prevSibling = null;
+  let oldFiber = wipFiber.alternate && wipFiber.alternate.child;
+
+  // 굳이 forEach 말고 while 사용하는 이유?
+  // 동기적으로 실행하기 위함?
+  while (index < element.length || oldFiber !== null) {
+    const element = elements[index];
+
+    let newFiber = null;
+
+    // compare old fiber to element
+    // 매번 새로 만들지 말고 있는 dom node를 사용해서 업데이트만 해줌
+    const sameType = oldFiber && element && oldFiber.type === element.type;
+
+    if (sameType) {
+      // update
+      newFiber = {
+        type: oldFiber.type,
+        props: element.props,
+        dom: oldFiber.dom,
+        parent: wipFiber,
+        alternate: oldFiber,
+        effectTag: "UPDATE",
+      };
+    }
+
+    if (element && !sameType) {
+      // 노드 추가
+      newFiber = {
+        type: element.type,
+        props: element.props,
+        dom: null,
+        parent: wipFiber,
+        alternate: null,
+        effectTag: "PLACEMENT",
+      };
+    }
+
+    if (oldFiber && !sameType) {
+      // 노드 삭제
+      oldFiber.effectTag = "DELETION";
+      deletions.push(oldFiber);
+    }
+
+    // 다음 fiber 선택
+    oldFiber = oldFiber.sibling;
+
+    // children은 링크드 리스트 형태
+    if (index === 0) wipFiber.child = newFiber;
+    else prevSibling.sibling = newFiber;
+
+    prevSibling = newFiber;
+    index++;
+  }
+}
+
 // prevent render job from hogging main thread for too long
 let nextUnitOfWork = null;
 let wipRoot = null;
+let currentRoot = null;
+let deletions = null;
 function workloop(deadline) {
   let shouldYield = false;
   while (nextUnitOfWork && !shouldYield) {
@@ -99,28 +207,9 @@ function performUnitOfWork(fiber) {
 
   // create fibers for children
   const elements = fiber.props.children;
-  let index = 0;
-  let prevSibling = null;
 
-  // 굳이 forEach 말고 while 사용하는 이유?
-  // 동기적으로 실행하기 위함?
-  while (index < element.length) {
-    const element = elements[index];
-
-    const newFiber = {
-      type: element.type,
-      props: element.props,
-      parent: fiber,
-      dom: null,
-    };
-
-    // children은 링크드 리스트 형태
-    if (index === 0) fiber.child = newFiber;
-    else prevSibling.sibling = newFiber;
-
-    prevSibling = newFiber;
-    index++;
-  }
+  // reconcile children
+  reconcileChildren(fiber, elements);
 
   // select next unit of work
   // child -> sibling -> uncle 순
