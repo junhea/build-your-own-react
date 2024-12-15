@@ -3,8 +3,7 @@
     [
       "@babel/plugin-transform-react-jsx",
       {
-        "runtime": "automatic", // defaults to classic
-        "importSource": "./didact"
+        "pragma": "Didact.createElement"
       }
     ],
     "babel-plugin-add-import-extension"

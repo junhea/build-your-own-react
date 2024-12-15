@@ -51,7 +51,7 @@ function commitWork(fiber) {
   if (!fiber) return;
 
   // functionComponent doesn't have dom: traverse until we find host component
-  const domParentFiber = fiber.parent;
+  let domParentFiber = fiber.parent;
   while (domParentFiber.dom === null) {
     domParentFiber = domParentFiber.parent;
   }
@@ -173,7 +173,7 @@ function reconcileChildren(wipFiber, elements) {
     }
 
     // 다음 fiber 선택
-    oldFiber = oldFiber.sibling;
+    if (oldFiber) oldFiber = oldFiber.sibling;
 
     // children은 링크드 리스트 형태
     if (index === 0) wipFiber.child = newFiber;
