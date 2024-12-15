@@ -80,12 +80,7 @@ function createDom(fiber) {
       ? document.createTextNode("")
       : document.createElement(fiber.type);
 
-  const isProperty = ([name]) => name !== "children";
-
-  // copy element props to dom node
-  Object.entries(fiber.props)
-    .filter(isProperty)
-    .forEach(([name, value]) => (dom[name] = value));
+  updateDom(dom, {}, fiber.props);
 
   return dom;
 }
