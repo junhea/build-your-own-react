@@ -6,6 +6,7 @@
         "runtime": "automatic", // defaults to classic
         "importSource": "./didact"
       }
-    ]
+    ],
+    "babel-plugin-add-import-extension"
   ]
 }
