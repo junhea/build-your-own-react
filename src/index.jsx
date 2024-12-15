@@ -1,7 +1,8 @@
 import * as Didact from "./didact";
 
-function App({ name }) {
-  return <h1>{name}</h1>;
+function App() {
+  const [count, setCount] = Didact.useState(1);
+  return <h1 onClick={() => setCount((c) => c + 1)}>Count: {count}</h1>;
 }
 
 const element = <App name="foo" />;
