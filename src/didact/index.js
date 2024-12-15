@@ -128,7 +128,7 @@ function reconcileChildren(wipFiber, elements) {
 
   // 굳이 forEach 말고 while 사용하는 이유?
   // 동기적으로 실행하기 위함?
-  while (index < elements.length || oldFiber !== null) {
+  while (index < elements.length || oldFiber) {
     const element = elements[index];
 
     let newFiber = null;
