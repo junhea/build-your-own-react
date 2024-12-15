@@ -172,7 +172,7 @@ function reconcileChildren(wipFiber, elements) {
 
     // children은 링크드 리스트 형태
     if (index === 0) wipFiber.child = newFiber;
-    else prevSibling.sibling = newFiber;
+    else if (element) prevSibling.sibling = newFiber;
 
     prevSibling = newFiber;
     index++;
