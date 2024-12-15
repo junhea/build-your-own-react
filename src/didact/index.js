@@ -49,18 +49,29 @@ function commitRoot() {
 function commitWork(fiber) {
   // recursively commit work(mount dom nodes)
   if (!fiber) return;
-  const domParent = fiber.parent.dom;
+
+  // functionComponent doesn't have dom: traverse until we find host component
+  const domParentFiber = fiber.parent;
+  while (domParentFiber.dom === null) {
+    domParentFiber = domParentFiber.parent;
+  }
+  const domParent = domParentFiber.dom;
 
   if (fiber.effectTag === "PLACEMENT" && fiber.dom !== null) {
     domParent.appendChild(fiber.dom);
   } else if (fiber.effectTag === "UPDATE" && fiber.dom !== null) {
     updateDom(fiber.dom, fiber.alternate.props, fiber.props);
   } else if (fiber.effectTag === "DELETION") {
-    domParent.removeChild(fiber.dom);
+    commitDeletion(fiber, domParent);
   }
 
   commitWork(fiber.child);
   commitWork(fiber.sibling);
+}
+
+function commitDeletion(fiber, domParent) {
+  if (fiber.dom) domParent.removeChild(fiber.dom);
+  else commitDeletion(fiber.child, domParent);
 }
 
 function createDom(fiber) {
@@ -122,7 +133,7 @@ function reconcileChildren(wipFiber, elements) {
 
   // 굳이 forEach 말고 while 사용하는 이유?
   // 동기적으로 실행하기 위함?
-  while (index < element.length || oldFiber !== null) {
+  while (index < elements.length || oldFiber !== null) {
     const element = elements[index];
 
     let newFiber = null;
@@ -200,16 +211,10 @@ requestIdleCallback(workloop);
 // 작업들은 fiber tree 형태로 관리 -> 다음 작업을 쉽게 찾기 위함
 // unitOfWork는 각 element 당 하나씩 생성
 function performUnitOfWork(fiber) {
-  // add element to dom
-  if (!fiber.dom) fiber.dom = createDom(fiber);
-
-  // if (fiber.parent) fiber.parent.dom.append(fiber.dom); // 완료되기 전까지 마운트 방지
-
-  // create fibers for children
-  const elements = fiber.props.children;
-
-  // reconcile children
-  reconcileChildren(fiber, elements);
+  // check if current fiber is function component
+  const isFunctionComponent = fiber.type instanceof Function;
+  if (isFunctionComponent) updateFunctionComponent(fiber);
+  else updateHostComponent(fiber);
 
   // select next unit of work
   // child -> sibling -> uncle 순
@@ -219,4 +224,22 @@ function performUnitOfWork(fiber) {
     if (nextFiber.sibling) return nextFiber.sibling;
     nextFiber = nextFiber.parent;
   }
+}
+
+// component is function: does not have dom & returns children
+function updateFunctionComponent(fiber) {
+  const elements = [fiber.type(fiber.props)];
+  reconcileChildren(fiber, elements);
+}
+
+// component is not function: has dom & has children in props
+function updateHostComponent(fiber) {
+  // add element to dom
+  if (!fiber.dom) fiber.dom = createDom(fiber);
+
+  // create fibers for children
+  const elements = fiber.props.children;
+
+  // reconcile children
+  reconcileChildren(fiber, elements);
 }
