@@ -91,7 +91,7 @@ function createDom(fiber) {
 }
 
 const isEvent = (key) => key.startsWith("on");
-const isProperty = (key) => key != children && !isEvent(key);
+const isProperty = (key) => key != "children" && !isEvent(key);
 const isNew = (prev, next) => (key) => prev[key] !== next[key];
 const isGone = (prev, next) => (key) => !(key in next);
 function updateDom(dom, prevProps, nextProps) {
@@ -122,7 +122,7 @@ function updateDom(dom, prevProps, nextProps) {
     .filter(isNew(prevProps, nextProps))
     .forEach((key) => {
       const eventType = key.toLowerCase().substring(2);
-      dom.addEventListener(eventType, prevProps[key]);
+      dom.addEventListener(eventType, nextProps[key]);
     });
 }
 
